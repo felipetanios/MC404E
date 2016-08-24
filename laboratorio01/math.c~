@@ -1,7 +1,0 @@
-#include <stdio.h>
-
-float log();
-
-float math(a){
-	return log(a);
-}

@@ -1,5 +1,5 @@
 #include <stdio.h>
 
-int log(a){
+int log(int a){
 	return a*a;
 }

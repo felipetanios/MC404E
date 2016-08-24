@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-int math();
+int math(int a);
 
 int main(){
 	printf("ola gentes!\n");

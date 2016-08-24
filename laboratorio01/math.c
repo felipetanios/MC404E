@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-int log(a);
+int log(int a);
 
-int math(a){
+int math(int a){
 	return log(a);
 }
