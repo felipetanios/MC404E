@@ -1,0 +1,43 @@
+x = distancia
+y = g*x
+k = g*x/2
+for (i = 10; i => 0; i--){
+    z = (k + y/k)/2
+    k = z
+}
+return k
+
+
+
+inicio:
+    LOAD MQ,M(0x105)    #entrada fornecida          #MQ := x
+    MUL M(0x100)        #posição 100: gravidade     #MQ := 0x100 * MQ
+    LOAD MQ             #transfere a multiplicação  #AC := MQ
+    STOR M(0x101)       #guarda y na memoria        #y := AC
+    LOAD M(0x101)       #pega o valor de y          #AC := y
+    RSH                 #calcula k = y/2 (desloca)  #AC := AC >> 1
+    STOR M(0x102)       #guarda k na memoria        #k := AC
+
+laco:
+    LOAD M(0x101)       #inicia o valor de y        #AC := y
+    DIV M(0x102)        #calcula y/k                #MQ := y/k
+    LOAD MQ             #guarda em AC y/k           #AC := MQ
+    ADD M(0x102)        #calcula k+y/k              #AC := AC + k
+    RSH                 #divide por 2               #AC := AC >> 1
+    STOR M(0x102)       #guarda o novo valor de k   # k := AC
+    LOAD M(0x104)       #pega o valor do contador   #AC := contador
+    SUB M(0x103)        #decresce em 1 o contador   #AC := AC - 1
+    JUMP+ (laco)        #repete o laco
+    
+LOAD M(0x102)           #guarda em AC o valor de k  #AC := k              
+
+JUMP (0x400)    
+
+
+100 00 00 00 00 0A #g
+101 #y
+102 #k
+103 00 00 00 00 01 #constante 1
+104 00 00 00 00 0A #contador
+105 # x = entrada
+
