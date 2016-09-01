@@ -1,9 +1,11 @@
 x = distancia
 y = g*x
 k = g*x/2
-for (i = 10; i => 0; i--){
-    z = (k + y/k)/2
-    k = z
+if k != 0{
+    for (i = 10; i => 0; i--){
+        z = (k + y/k)/2
+        k = z
+    }
 }
 return k
 
@@ -17,6 +19,15 @@ inicio:
     LOAD M(0x101)       #pega o valor de y          #AC := y
     RSH                 #calcula k = y/2 (desloca)  #AC := AC >> 1
     STOR M(0x102)       #guarda k na memoria        #k := AC
+    LOAD M(0x102)       #pega o valor de k          #AC := k
+    SUB M(0x103)        #subtrai o valor de k em 1  #AC := AC -1
+                        #para se k = 0 ele nao ir para o laco
+    JUMP+ (laco)        #entra no laco se AC >= 0 (k>0)
+                        #senao
+    LOAD M(0x102)       #pega o valor de k para AC  #AC := k
+                        #para a resposta
+                        
+JUMP (0x400)
 
 laco:
     LOAD M(0x101)       #inicia o valor de y        #AC := y
@@ -27,6 +38,7 @@ laco:
     STOR M(0x102)       #guarda o novo valor de k   # k := AC
     LOAD M(0x104)       #pega o valor do contador   #AC := contador
     SUB M(0x103)        #decresce em 1 o contador   #AC := AC - 1
+    STOR M(0x104)       #guarda o valordo contador  #contador := AC
     JUMP+ (laco)        #repete o laco
     
 LOAD M(0x102)           #guarda em AC o valor de k  #AC := k              
@@ -40,4 +52,3 @@ JUMP (0x400)
 103 00 00 00 00 01 #constante 1
 104 00 00 00 00 0A #contador
 105 # x = entrada
-
