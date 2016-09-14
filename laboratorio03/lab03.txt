@@ -4,13 +4,20 @@ vet1:
 vet2:
     MUL M(0x3FE)        #MQ = vetor1[0]*vetor1[0]
     LOAD MQ             #AC = MQ (resultado da multiplicação)
-    ADD M(0x060)
-    LOAD -M(0x3FF)      #AC = -(tamanho do vetor)
-    ADD M(0x061)        #AC = tamanho do vetor +1
-    JUMP+ M(0x400)      #se for = 0 finaliza o programa
-    JUMP (laco)         #se nao for 0 volta no laco  
+    ADD M(0x060)        #AC = AC + soma dos vetores
+    STOR M(0x060)       #0x060 = soma dos vetores atualizada
     
-
+    LOAD -M(0x3FF)      #AC = -(tamanho do vetor)
+    ADD M(0x061)        #AC = -(tamanho do vetor) +1
+    JUMP+ M(fim)        #se for = 0 finaliza o programa
+    LOAD M(0x3FF)       #AC = tamanho do vetor  
+    SUB M(0x061)        #AC -= 1
+    STOR M(0x3FF)       #tamanho do vetor -= 1
+    JUMP (laco)         #se nao for 0 volta no laco
+    
+fim:
+    LOAD M(0x060)       #AC = soma dos vetores
+    JUMP M(0x400)
 
 
 060 00 00 00 00 00 #salva a soma dos vetores
