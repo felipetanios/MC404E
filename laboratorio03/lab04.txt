@@ -1,0 +1,25 @@
+laco:
+vet1:
+    LOAD MQ,M(0x3FD)    #MQ = vetor1[0]
+vet2:
+    MUL M(0x3FE)        #MQ = vetor1[0]*vetor1[0]
+    LOAD MQ             #AC = MQ (resultado da multiplicação)
+    ADD M(0x060)
+    LOAD -M(0x3FF)      #AC = -(tamanho do vetor)
+    ADD M(0x061)        #AC = tamanho do vetor +1
+    JUMP+ M(0x400)      #se for = 0 finaliza o programa
+    JUMP (laco)         #se nao for 0 volta no laco  
+    
+
+
+
+060 00 00 00 00 00 #salva a soma dos vetores
+061 00 00 00 00 01 # constante 1
+062 00 00 00 03 FD #inicio do vetor 1
+063 00 00 00 03 Fe #inicio do vetor 2
+
+0x3FD #comeco vetor 1
+
+0x3FE #comeco vetor 2
+
+0x3FF #tamanho do vetor
