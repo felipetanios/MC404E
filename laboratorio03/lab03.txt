@@ -1,11 +1,20 @@
+000 09 3FD 0B 3FE   #MQ = vetor1[0] MQ = vetor1[0]*vetor2[0]
+001 0A 000 05 060   #AC = MQ        AC += soma dos vetores
+002 21 060
+003
+004
+005
+006
+007
+008
+
 laco:
-vet1:
-    LOAD MQ,M(0x3FD)    #MQ = vetor1[0]
-vet2:
-    MUL M(0x3FE)        #MQ = vetor1[0]*vetor1[0]
-    LOAD MQ             #AC = MQ (resultado da multiplicação)
-    ADD M(0x060)        #AC = AC + soma dos vetores
-    STOR M(0x060)       #0x060 = soma dos vetores atualizada
+vet:
+    09 3FD  LOAD MQ,M(0x3FD)    #MQ = vetor1[0]
+    0B 3FE  MUL M(0x3FE)        #MQ = vetor1[0]*vetor2[0]
+    0A 000  LOAD MQ             #AC = MQ (resultado da multiplicação)
+    05 060  ADD M(0x060)        #AC = AC + soma dos vetores
+    21 060  STOR M(0x060)       #0x060 = soma dos vetores atualizada
     
     LOAD -M(0x3FF)      #AC = -(tamanho do vetor)
     ADD M(0x061)        #AC = -(tamanho do vetor) +1
@@ -13,17 +22,25 @@ vet2:
     LOAD M(0x3FF)       #AC = tamanho do vetor  
     SUB M(0x061)        #AC -= 1
     STOR M(0x3FF)       #tamanho do vetor -= 1
+    LOAD M(0x062)       #AC = inicio vetor 1
+    ADD M(0x061)        #soma um no indice do vetor
+    STOR M(vet, 8:19)   #muda o indice do vetor 1 no inicio do loop
+    STOR M(0x062)       #salva o novo indice do vetor
+    LOAD M(0x062)       #AC = inicio vetor 1
+    ADD M(0x061)        #soma um no indice do vetor
+    STOR M(vet, 8:19)   #muda o indice do vetor 1 no inicio do loop
+    STOR M(0x062)       #salva o novo indice do vetor    
     JUMP (laco)         #se nao for 0 volta no laco
     
 fim:
-    LOAD M(0x060)       #AC = soma dos vetores
-    JUMP M(0x400)
+    LOAD (0x060)        #AC = soma dos vetores
+    JUMP (0x400)        #finaliza o programa
 
 
 060 00 00 00 00 00 #salva a soma dos vetores
 061 00 00 00 00 01 # constante 1
 062 00 00 00 03 FD #inicio do vetor 1
-063 00 00 00 03 Fe #inicio do vetor 2
+063 00 00 00 03 FE #inicio do vetor 2
 
 0x3FD #comeco vetor 1
 
