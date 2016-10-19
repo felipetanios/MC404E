@@ -6,7 +6,7 @@ _start:
     mov r0, #1      @ carrega o valor 1 em r0, indicando que a saída da
 	            @ syscall write sera em stdout
     ldr r1, =string @ carrega em r1 o endereco da string
-    mov r2, #30      @ carrega em r2 o tamanho da string. r0,r1 e r2 serão
+    mov r2, #31      @ carrega em r2 o tamanho da string. r0,r1 e r2 serão
 	            @ os argumentos da syscall write
     mov r7, #4      @ carrega o valor 4 para r7, indica o tipo da syscall
     svc 0x0         @ realiza uma chamada de sistema (syscall)
@@ -17,4 +17,4 @@ _start:
 
 .data               @ seção de dados
 
-string:  .asciz "Felipe Souza Tanios - ra155330"  @coloca a string na memoria
+string:  .asciz "Felipe Souza Tanios - ra155330\n"  @coloca a string na memoria
