@@ -53,10 +53,33 @@ _start:
 @  r0: valor de entrada (4 bits menos significativos)
 @ retorno:
 @  r0: valor codificado (7 bits como especificado no enunciado).
-encode:    
+encode:
+
+       @ <<<<<< ADICIONE SEU CODIGO AQUI >>>>>>    
        push {r4-r11, lr}
+       mov r4, r0
+       and r5, r4, #1 @r5 recebe o primeiro bit de r4 (d4)
+       and r6, r4, #2, lsr #1 @r6 recebe o segundo bit de r4 (d3)
+       and r7, r4, #4, lsr #2 @r7 recebe o terceiro bit de r4 (d2)
+       and r8, r4, #8, lsr #3 @r8 recebe o quarto bit de r4 (d1)
+       @para calcular os valores de p1, p2, p3 farei um XOR entre
+       @os bits que eles testam. Se o resultado desse XOR for 1
+       @o bit de paridade vale 1, senao ele vale 0
+       eor r9, r8, r7 @ r9 = p1
+       eor r9, r9, r5
+       eor r10, r8, r6 @ r10 = p2
+       eor r10, r10, r5 
+       eor r11, r7, r6 @r11 = p3
+       eor r11, r11, r5
+       and r4, r4, #0 @zera o registrador 4 para ele guardar o resultado
+       add r4, r4, r9, lsl #6 @coloca p1 no 7o bit
+       add r4, r4, r10, lsl #5 @coloca p2 no 6o bit
+       add r4, r4, r8, lsl #4 @coloca d1 no 5o bit
+       add r4, r4, r11, lsl #3 @coloca p3 no 4o bit
+       add r4, r4, r7, lsl #2 @coloca d2 no 3o bit
+       add r4, r4, r6, lsl #1 @coloca d3 no 2o bit
+       add r4, r4, r5 @coloca d4 no 1o bit
        
-       @ <<<<<< ADICIONE SEU CODIGO AQUI >>>>>>
     
        pop  {r4-r11, lr}
        mov  pc, lr
@@ -69,7 +92,8 @@ encode:
 @  r1: 1 se houve erro e 0 se nao houve.
 decode:    
        push {r4-r11, lr}
-       
+       mov r4, r0
+       and r5, r4, 
        @ <<<<<< ADICIONE SEU CODIGO AQUI >>>>>>
 
        pop  {r4-r11, lr}
