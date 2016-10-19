@@ -59,9 +59,12 @@ encode:
        push {r4-r11, lr}
        mov r4, r0
        and r5, r4, #1 @r5 recebe o primeiro bit de r4 (d4)
-       and r6, r4, #2, lsr #1 @r6 recebe o segundo bit de r4 (d3)
-       and r7, r4, #4, lsr #2 @r7 recebe o terceiro bit de r4 (d2)
-       and r8, r4, #8, lsr #3 @r8 recebe o quarto bit de r4 (d1)
+       and r6, r4, #2
+       mov r6, r6, lsr #1 @r6 recebe o segundo bit de r4 (d3)
+       and r7, r4, #4 
+       mov r7, r7, lsr #2 @r7 recebe o terceiro bit de r4 (d2)
+       and r8, r4, #8 
+       mov r8, r8, lsr #3 @r8 recebe o quarto bit de r4 (d1)
        @para calcular os valores de p1, p2, p3 farei um XOR entre
        @os bits que eles testam. Se o resultado desse XOR for 1
        @o bit de paridade vale 1, senao ele vale 0
@@ -79,6 +82,7 @@ encode:
        add r4, r4, r7, lsl #2 @coloca d2 no 3o bit
        add r4, r4, r6, lsl #1 @coloca d3 no 2o bit
        add r4, r4, r5 @coloca d4 no 1o bit
+       mov r0, r4
        
     
        pop  {r4-r11, lr}
@@ -93,7 +97,7 @@ encode:
 decode:    
        push {r4-r11, lr}
        mov r4, r0
-       and r5, r4, 
+       
        @ <<<<<< ADICIONE SEU CODIGO AQUI >>>>>>
 
        pop  {r4-r11, lr}
