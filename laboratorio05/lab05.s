@@ -170,28 +170,28 @@ decode:
        @armazenado o bit de paridade e o resultado do teste desse bit
        and r1, r1, #0 @zera r1, onde no final tera o resultado do erro
        @teste de p1
-       mov r9, r4, lsr #6
-       and r9, r9, #1 @r9 recebe p1
-       eor r9, r9, r8
-       eor r9, r9, r7
-       eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       cmp r9, #1
+       and r9, r4, #64       
+       mov r9, r9, lsr #6 @r9 recebe p1
+       eor r9, r9, r8 @p1 XOR d1
+       eor r9, r9, r7 @d2 XOR (d1 XOR p1)
+       eor r9, r9, r5 @d4 XOR d2 XOR d1 XOR p1
+       cmp r9, #1 @testa se o resultado final eh 1
        moveq r1, r9
        @teste de p2
-       mov r9, r4, lsr #5
-       and r9, r9, #1 @r9 recebe p2
-       eor r9, r9, r8
-       eor r9, r9, r6
-       eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       cmp r9, #1
+       and r9, r4, #32
+       mov r9, r9, lsr #5  @r9 recebe p2
+       eor r9, r9, r8 @p2 XOR d1
+       eor r9, r9, r6 @p2 XOR d1 XOR d3
+       eor r9, r9, r5 @p2 XOR d1 XOR d3 XOR d4
+       cmp r9, #1 @testa se o resultado eh igual a 1
        moveq r1, r9
        @teste de p3
-       mov r9, r4, lsr #3
-       and r9, r9, #1 @r9 recebe p3
-       eor r9, r9, r7
-       eor r9, r9, r6
-       eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       cmp r9, #1
+       and r9, r4, #8
+       mov r9, r9, lsr #3 @r9 recebe p3
+       eor r9, r9, r7 @p3 XOR d2
+       eor r9, r9, r6 @p3 XOR d2 XOR d3
+       eor r9, r9, r5 @p3 XOR d2 XOR d3 XOR d4
+       cmp r9, #1 @testa se o resultado eh igual a 1
        moveq r1, r9
        
        
