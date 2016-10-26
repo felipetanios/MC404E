@@ -92,7 +92,7 @@ _start:
     mov r1, #'\n'
     strb r1, [r0, #1]
 
-    @ Chama a funcao write para escrever os 7 caracteres e
+    @ Chama a funcao write para escrever o caracter e
     @ o '\n' na saida padrao.
     ldr r0, =output_buffer
     mov r1, #2         @ 7 caracteres + '\n'
@@ -168,7 +168,7 @@ decode:
        mov r0, r4 @coloca o resultado em r0
        @verificacao de paridades, o registrador r9 vai ser onde vai ser 
        @armazenado o bit de paridade e o resultado do teste desse bit
-       and r1, r1, #0 @zera r1, onde no final tera o resultado do erro
+       mov r1, #0 @zera r1, onde no final tera o resultado do erro
        @teste de p1
        and r9, r4, #64       
        mov r9, r9, lsr #6 @r9 recebe p1
@@ -176,7 +176,7 @@ decode:
        eor r9, r9, r7 @d2 XOR (d1 XOR p1)
        eor r9, r9, r5 @d4 XOR d2 XOR d1 XOR p1
        cmp r9, #1 @testa se o resultado final eh 1
-       moveq r1, r9
+       moveq r1, #1
        @teste de p2
        and r9, r4, #32
        mov r9, r9, lsr #5  @r9 recebe p2
@@ -184,7 +184,7 @@ decode:
        eor r9, r9, r6 @p2 XOR d1 XOR d3
        eor r9, r9, r5 @p2 XOR d1 XOR d3 XOR d4
        cmp r9, #1 @testa se o resultado eh igual a 1
-       moveq r1, r9
+       moveq r1, #1
        @teste de p3
        and r9, r4, #8
        mov r9, r9, lsr #3 @r9 recebe p3
@@ -192,7 +192,7 @@ decode:
        eor r9, r9, r6 @p3 XOR d2 XOR d3
        eor r9, r9, r5 @p3 XOR d2 XOR d3 XOR d4
        cmp r9, #1 @testa se o resultado eh igual a 1
-       moveq r1, r9
+       moveq r1, #1
        
        
 
