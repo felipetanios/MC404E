@@ -175,21 +175,24 @@ decode:
        eor r9, r9, r8
        eor r9, r9, r7
        eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       orr r1, r1, r9 @se teve erro r1 = 1, senao r1 = 0
+       cmp r9, #1
+       moveq r1, r9
        @teste de p2
        mov r9, r4, lsr #5
        and r9, r9, #1 @r9 recebe p2
        eor r9, r9, r8
        eor r9, r9, r6
        eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       orr r1, r1, r9 @se teve erro r1 = 1, senao r1 = 0
+       cmp r9, #1
+       moveq r1, r9
        @teste de p3
        mov r9, r4, lsr #3
        and r9, r9, #1 @r9 recebe p3
        eor r9, r9, r7
        eor r9, r9, r6
        eor r9, r9, r5 @se r9 for 1 teve um erro na paridade
-       orr r1, r1, r9 @se teve erro r1 = 1, senao r1 = 0
+       cmp r9, #1
+       moveq r1, r9
        
        
 
