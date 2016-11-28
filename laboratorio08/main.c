@@ -11,12 +11,16 @@ void _start(void)
   do {
     set_speed_motors(25,25);
     delay();
-    set_speed_motor(10,0);
-    delay();
-    set_speed_motors(25,10);
-    delay();
-    read_sonars(distances);
+    
   } while ( ( distances[4] > 1200 ) && ( distances[3] > 1200 ));
+  if (distances[4] < 1200){
+    set_speed_motors(25,0);
+    delay();
+  } 
+  if (distances[3] < 1200){
+    set_speed_motors(0,25);
+    delay();
+  }
 }
 
 /* Spend some time doing nothing. */
