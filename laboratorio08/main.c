@@ -5,22 +5,25 @@ void delay();
 /* main function */
 void _start(void) 
 {
-  unsigned int distances[16];
-
-  /* While not close to anything. */
-  do {
-    set_speed_motors(25,25);
-    delay();
-    
-  } while ( ( distances[4] > 1200 ) && ( distances[3] > 1200 ));
-  if (distances[4] < 1200){
-    set_speed_motors(25,0);
-    delay();
-  } 
-  if (distances[3] < 1200){
-    set_speed_motors(0,25);
-    delay();
-  }
+	unsigned short a, b;
+	/* While not close to anything. */
+	do{
+		a = read_sonar(4);
+		b = read_sonar(3);
+		
+		while ((a > 1200) && (b > 1200)){
+			set_speed_motors(25,25);
+			delay();
+			a = read_sonar(4);
+			b = read_sonar(3);
+		} 
+		while ((a < 1200) || (b < 1200)){
+			set_speed_motors(10,0);
+			delay();
+			a = read_sonar(4);
+			b = read_sonar(3);
+		}
+  }while (1);
 }
 
 /* Spend some time doing nothing. */
@@ -28,5 +31,5 @@ void delay()
 {
   int i;
   /* Not the best way to delay */
-  for(i = 0; i < 10000; i++ );  
+  for(i = 0; i < 1000; i++ );  
 }
