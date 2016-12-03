@@ -47,7 +47,7 @@ SET_GPT:
     ldr r1, =GPT_BASE
 
     @ Habilita e configura o clock_src para periférico
-    mov r0, #0x041
+    mov r0, #0x41
     str r0, [r1, #GPT_CR]
 
     @ Zera o prescaler
@@ -116,9 +116,9 @@ IRQ_HANDLER:
 
     ldr r1, =GPT_BASE
 
-    @Coloca 0x1 em GPT_SR
-    mov r0, #0x01
-    str r0, [r1, GPT_SR]
+    @Coloca 1 em GPT_SR
+    mov r0, #1
+    str r0, [r1, #GPT_SR]
 
     @Incrementa contador na memoria
     ldr r0, =CONTADOR
