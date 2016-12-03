@@ -104,7 +104,7 @@ break_motor2_speed:
 read_sonar:
     stmfd sp!, {r4-r11, lr}
     @parametros:
-    @r0: id do sonar que deve ser lido
+    @r0: id do sonar que deve ser lido (unsigned char)
     @testa para ver se o id do sonar esta entre 0 e 15
     cmp r0, #15
     bhi break_read_sonar
@@ -128,13 +128,11 @@ break_read_sonar:
 read_sonars:
     stmfd sp!, {r4-r11, lr}
     @parametros:
-    @r0: start
-    @r1: end
-    @r3: vetor de distancias (unsigned int)
-    @r6: endereço do começo do vetor de distancias
-    mov r6, =r3
-    @r11: indice do vetor de distancias a ser escrito
-    mov r11, #0
+    @r0: start (int)
+    @r1: end (int)
+    @r3: endereco do vetor de distancias (unsigned int)
+
+    ldr r6, =r3
     @salva as variaveis start e end em outros registradores
     mov r4, r0
     mov r5, r1
@@ -152,9 +150,9 @@ reading:
     bl read_sonar
     @agora o resultado do sonar esta em r0
     @salva o resultado na primeira posicao vazia do vetor de distancias
-    str r0, [r6, r11]
+    str r0, [r6]
     @atualiza a posicao do vetor
-    add r11, r11, #4
+    add r6, r6, #4
     @atualiza a posicao a ser lida
     add r4, r4, #1
     mov pc, lr
@@ -170,41 +168,92 @@ register_proximity_callback:
     @r1: sensor_threshold
     @r3: ponteiro para funcao (endereco do rotulo)
     @testa se o id do sensor eh valido
-
+    cmp r1, #15
+    bhi break_sonar_id
     @empilha as variaveis
     stmfd sp!, {r0, r1, r2}
     @define a syscall (17)
     mov r7, #17
     @chama o sistema operacional
     svc 0x0
+    @retorna 0
+    mov r0, #0
+    ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
+
+
+break_sonar_id:
+    mov r0, #-2
+    ldmfd sp!, {r4-r11, pc}
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                 ALARMS                                    @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+get_time:
+    stmfd sp!, {r4-r11, lr}    @ Save the callee-save registers
+    @parametros:
+    @r0: ponteiro para variavel que vai receber o tempo do sistema
+
+    @empilha as variaveis
+    stmfd sp!, {r0}
+    @define a syscall
+    mov r7, #20
+    @chama o sistema operacional
+    svc 0x0
 
     ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
-break_sonar_id:
-    
+
+
+set_time:
+    stmfd sp!, {r4-r11, lr}    @ Save the callee-save registers
+
+    @parametros:
+    @r0: novo tempo do sistema
+
+    @empilha as variaveis
+    stmfd sp!, {r0}
+    @define a syscall
+    mov r7, #21
+    @chama o sistema operaciuonal
+    svc 0x0
+
+    ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
 
 
 
 add_alarm:
-    stmfd sp!, {r7, lr}    @ Save the callee-save registers
+    stmfd sp!, {r4-r11, lr}    @ Save the callee-save registers
 
+    @parametros:
+    @r0: endereco da funcao (ponteiro para o rotulo)
+    @r1: tempo para invocar o alarme
+
+    @salva o endereco da funcao em outro registrador
+    mov r11, r0
+
+    @testa se o tempo para invocar o alarme nao eh menor do que o tempo atual
+    @do sistema
+
+    @ve qual eh o tempo atual do sistema
+tempo:
+    .skip 32
+    mov r0, =tempo
+    @compara o tempo atual com o tempo que quer ser colocado o alarme
+    bl get_time @r0 = tempo atual do sistema
+    cmp r1, r0
+    @se o tempo do alarme for menor ou igual ao atual retorna -2
+    bls time_error
+
+    @define a syscall
     mov r7, #22
+    @chama o sistema operacional
     svc 0x0
 
-    ldmfd sp!, {r7, pc}      @ Restore the registers and return
+    ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
 
-get_time:
-    stmfd sp!, {r7, lr}    @ Save the callee-save registers
-
-    mov r7, #20
-    svc 0x0
-
-    ldmfd sp!, {r7, pc}      @ Restore the registers and return
-
-
-set_time:
-    stmfd sp!, {r7, lr}    @ Save the callee-save registers
-
-    mov r7, #21
-    svc 0x0
-
-    ldmfd sp!, {r7, pc}      @ Restore the registers and return
+time_error:
+    mov r0, #-2
+    ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
