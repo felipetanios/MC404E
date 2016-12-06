@@ -46,9 +46,13 @@ interrupt_vector:
 .set GPIO_DR,               0x0
 .set GPIO_GDIR,             0x4
 .set GPIO_PSR,              0x8
+
 @mascara de GDIR (0 = entrada 1 = saida)
 .set GDIR_MASK,             0b11111111111111000000000000111110
-.set READO_SONAR mask       0b111110
+
+@mascara de velocidade dos motores
+.set MOTOR_0_MASK,          0b11111110000000111111111111111111
+.set MOTOR_1_MASK,          0b00000001111111111111111111111111
 
 
 @constantes
@@ -324,34 +328,49 @@ SET_MOTOR_SPEED:
   @retorna para o modo supervisor
   msr CPSR, r0
 
-  @testa se os valores de id de motor eh valido
-  cmp r1, #0
-  bleq id_valido
-  cmp r1, #1
-  bleq id_valido
-  b break_set_motor_id
-  @se o id eh valido testa se a velocidade eh valida
-id_valido:
+  @testa se a velocidade eh valida
   cmp r2, #63
   bhi break_set_motor_speed
+  @se ela eh valida, testa se os valores de id de motor eh valido
+  cmp r1, #0
+  bleq motor0
+  cmp r1, #1
+  bleq motor1
+  b break_set_motor_id
 
-  @se o id (r1) e a velocidade (r2) sao validas
-  
+  ldr r0, =GPIO_BASE
+  ldr r4, [r0, #GPIO_DR]
+motor0:
+  @desloca a velocidade para a posicao certa
+  mov r2, r2, lsl #19
+  and r4, r4, #MOTOR_0_MASK
+  orr r1, r1, r4
+  @escreve a velocidade na saida
+  str r1, [r0, #GPIO_DR]
 
+motor1:
+  @desloca a velocidade para a posicao certa
+  mov r2, r2, lsl #26
+  and r4, r4, #MOTOR_1_MASK
+  orr r1, r1, r4
+  @escreve a velocidade na saida
+  str r1, [r0, #GPIO_DR]
 
 break_set_motor_id:
   @retorna -1 se a funcao tem id de motor invalido
   mov r0, #-1
   ldmfd sp!, {r1-r11, pc}
-
   movs pc, lr
 
 break_set_motor_speed:
-  @retorna -1 se a funcao tem velocidade de motor invalida
+  @retorna -2 se a funcao tem velocidade de motor invalida
   mov r0, #-2
   ldmfd sp!, {r4-r11, pc}
+  movs pc, lr
 
-
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                SET_MOTORS_SPEED                             @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 SET_MOTORS_SPEED:
   @testa se as velocidades sao validas
   cmp r2, #63
