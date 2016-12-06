@@ -220,6 +220,11 @@ SYSCALL_HANDLER:
   cmp r7, #22                                     @ set alarm
   bleq ADD_ALARM
 
+  ldmfd sp!, {lr}
+
+  @retorna para modo usuario
+  movs pc, lr
+
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @                                READ_SONAR                                   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -227,7 +232,7 @@ SYSCALL_HANDLER:
 READ_SONAR:
   @r1:id do sonar
 
-  stmfd sp!, {r1-r11, lr}
+  stmfd sp!, {r4-r11, lr}
   @salva CPRS em r0 para nao perder quando mudar de modo
   mrs r0, CPSR
   @entra no modo system para pegar os parametros da funcao da pilha
@@ -290,21 +295,15 @@ flag_um:
   @agora r0 contem apenas o resultado de sonar data
   and r0, r2, #0b111111111111
 
-  @desempilha
+  @desempilha (retorna para SYSCALL_HANDLER)
   ldmfd sp!, {r4-r11, pc}
-
-  @retorna para modo usuario
-  movs pc, lr
 
 
 break_read_sonar:
   @retorna -1 se o id do sonar é invalido
   mov r0, #-1
-
-  ldmfd sp!, {r1-r11, pc}
-
-  @retorna para modo usuario
-  movs pc, lr
+  @desempilha (retorna para SYSCALL_HANDLER)
+  ldmfd sp!, {r4-r11, pc}
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @                                SET_MOTOR_SPEED                              @
@@ -314,7 +313,7 @@ SET_MOTOR_SPEED:
   @r1:id
   @r2:speed
 
-  stmfd sp!, {r1-r11, lr}
+  stmfd sp!, {r4-r11, lr}
   @salva CPRS em r0 para nao perder quando mudar de modo
   mrs r0, CPSR
   @entra no modo system para pegar os parametros da funcao da pilha
@@ -347,6 +346,8 @@ motor0:
   orr r1, r1, r4
   @escreve a velocidade na saida
   str r1, [r0, #GPIO_DR]
+  mov r0, #0
+  ldmfd sp!, {r1-r11, pc}
 
 motor1:
   @desloca a velocidade para a posicao certa
@@ -355,44 +356,82 @@ motor1:
   orr r1, r1, r4
   @escreve a velocidade na saida
   str r1, [r0, #GPIO_DR]
+  mov r0, #0
+  ldmfd sp!, {r4-r11, pc}
 
 break_set_motor_id:
   @retorna -1 se a funcao tem id de motor invalido
   mov r0, #-1
-  ldmfd sp!, {r1-r11, pc}
-  movs pc, lr
+  ldmfd sp!, {r4-r11, pc}
 
 break_set_motor_speed:
   @retorna -2 se a funcao tem velocidade de motor invalida
   mov r0, #-2
   ldmfd sp!, {r4-r11, pc}
-  movs pc, lr
+
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @                                SET_MOTORS_SPEED                             @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-SET_MOTORS_SPEED:
-  @testa se as velocidades sao validas
+  @r1:speed1
+  @r2:speed0
+
+  stmfd sp!, {r4-r11, lr}
+  @salva CPRS em r0 para nao perder quando mudar de modo
+  mrs r0, CPSR
+  @entra no modo system para pegar os parametros da funcao da pilha
+  msr CPSR, #0x1F
+  @recupera o valor (salvando em r1 e em r2)
+  mov r4, sp
+  sub r4, r4, #4
+  ldr r2, [r4]
+  sub r4, r4, #4
+  ldr r1, [r4]
+  @retorna para o modo supervisor
+  msr CPSR, r0
+
+  @testa se a velocidade 0 eh valida
+  cmp r1, #63
+  bhi break_motor0_speed
+  @testa se a velocidade 1 eh valida
   cmp r2, #63
   bhi break_motor1_speed
-  cmp r3, #63
-  bhi break_motor2_speed
 
+  ldr r0, =GPIO_BASE
+  ldr r4, [r0, #GPIO_DR]
+  motor0:
+  @desloca a velocidade para a posicao certa
+  mov r1, r1, lsl #19
+  and r4, r4, #MOTOR_0_MASK
+  orr r1, r1, r4
+  @escreve a velocidade na saida
+  str r1, [r0, #GPIO_DR]
 
-break_motor1_speed:
-  @retorna -1 se a funcao tem velocidade de motor invalida
+  motor1:
+  @desloca a velocidade para a posicao certa
+  mov r2, r2, lsl #26
+  and r4, r4, #MOTOR_1_MASK
+  orr r2, r2, r4
+  @escreve a velocidade na saida
+  str r2, [r0, #GPIO_DR]
+
+  mov r0, #0
+  ldmfd sp!, {r4-r11, pc}
+
+break_motor0_speed:
+  @retorna -1 se a funcao tem velocidade do motor 0 invalida
   mov r0, #-1
   ldmfd sp!, {r4-r11, pc}
 
-
-break_motor2_speed:
-  @retorna -1 se a funcao tem velocidade de motor invalida
+break_motor1_speed:
+  @retorna -2 se a funcao tem velocidade do motor 1 invalida
   mov r0, #-2
   ldmfd sp!, {r4-r11, pc}
 
 
-
-
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                SET_MOTORS_SPEED                             @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 REGISTER_PROXIMITY_CALLBACK:
 
 @testa se o id do sensor eh valido
