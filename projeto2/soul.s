@@ -48,6 +48,7 @@ interrupt_vector:
 .set GPIO_PSR,              0x8
 @mascara de GDIR (0 = entrada 1 = saida)
 .set GDIR_MASK,             0b11111111111111000000000000111110
+.set READO_SONAR mask       0b111110
 
 
 @constantes
@@ -58,6 +59,9 @@ interrupt_vector:
 
 .text
 
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                TODOS OS SETS                                @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 RESET_HANDLER:
 
@@ -80,79 +84,94 @@ RESET_HANDLER:
 
 
 SET_GPT:
-    @ Constantes para os enderecos de GPT
+	@ Constantes para os enderecos de GPT
 
-    .set TIME_SZ,  100
+	.set TIME_SZ,  100
 
-    ldr r1, =GPT_BASE
+	ldr r1, =GPT_BASE
 
-    @ Habilita e configura o clock_src para periférico
-    mov r0, #0x41
-    str r0, [r1, #GPT_CR]
+	@ Habilita e configura o clock_src para periférico
+	mov r0, #0x41
+	str r0, [r1, #GPT_CR]
 
-    @ Zera o prescaler
-    mov r0, #0
-    str r0, [r1, #GPT_PR]
+	@ Zera o prescaler
+	mov r0, #0
+	str r0, [r1, #GPT_PR]
 
-    @ Coloca em GPT_OCR1 o valor que eu desejo contar (100)
-    mov r0, #100
-    str r0, [r1, #GPT_OCR1]
+	@ Coloca em GPT_OCR1 o valor que eu desejo contar (100)
+	mov r0, #100
+	str r0, [r1, #GPT_OCR1]
 
-    @ Habilita interrupcao Output Compare Channel 1
-    mov r0, #1
-    str r0, [r1, #GPT_IR]
-
-    mov pc, lr
+	@ Habilita interrupcao Output Compare Channel 1
+	mov r0, #1
+	str r0, [r1, #GPT_IR]
 
 
 SET_TZIC:
 
 	@ Liga o controlador de interrupcoes
-    @ R1 <= TZIC_BASE
+  @ R1 <= TZIC_BASE
 
-    ldr	r1, =TZIC_BASE
+  ldr	r1, =TZIC_BASE
 
-    @ Configura interrupcao 39 do GPT como nao segura
-    mov	r0, #(1 << 7)
-    str	r0, [r1, #TZIC_INTSEC1]
+  @ Configura interrupcao 39 do GPT como nao segura
+  mov	r0, #(1 << 7)
+  str	r0, [r1, #TZIC_INTSEC1]
 
-    @ Habilita interrupcao 39 (GPT)
-    @ reg1 bit 7 (gpt)
+  @ Habilita interrupcao 39 (GPT)
+  @ reg1 bit 7 (gpt)
 
-    mov	r0, #(1 << 7)
-    str	r0, [r1, #TZIC_ENSET1]
+  mov	r0, #(1 << 7)
+  str	r0, [r1, #TZIC_ENSET1]
 
-    @ Configure interrupt39 priority as 1
-    @ reg9, byte 3
+  @ Configure interrupt39 priority as 1
+  @ reg9, byte 3
 
-    ldr r0, [r1, #TZIC_PRIORITY9]
-    bic r0, r0, #0xFF000000
-    mov r2, #1
-    orr r0, r0, r2, lsl #24
-    str r0, [r1, #TZIC_PRIORITY9]
+  ldr r0, [r1, #TZIC_PRIORITY9]
+  bic r0, r0, #0xFF000000
+  mov r2, #1
+  orr r0, r0, r2, lsl #24
+  str r0, [r1, #TZIC_PRIORITY9]
 
-    @ Configure PRIOMASK as 0
-    eor r0, r0, r0
-    str r0, [r1, #TZIC_PRIOMASK]
+  @ Configure PRIOMASK as 0
+  eor r0, r0, r0
+  str r0, [r1, #TZIC_PRIOMASK]
 
-    @ Habilita o controlador de interrupcoes
-    mov	r0, #1
-    str	r0, [r1, #TZIC_INTCTRL]
+  @ Habilita o controlador de interrupcoes
+  mov	r0, #1
+  str	r0, [r1, #TZIC_INTCTRL]
 
-    @instrucao msr - habilita interrupcoes
-    msr  CPSR_c, #0x13
+  @instrucao msr - habilita interrupcoes
+  msr  CPSR_c, #0x13
 
 SET_GPIO:
 	@r1 recebe o endereco de GPIO
 	ldr r1, =GPIO_BASE
 
 	@define a mascara para os pinos do GPIO (pinos de entrada e saida)
-    ldr r0, =GDIR_MASK
-    str r0, [r1, #GPIO_GDIR]
+	ldr r0, =GDIR_MASK
+	str r0, [r1, #GPIO_GDIR]
 
 
 SET_STACKS:
-	@define a posicao das diferentes pilhas para cada modo
+
+
+  @entra no modo IRQ
+  msr CPSR_c, #0x12
+  @ajusta o comeco de sp para essa posicao
+  mov sp,=STACK_IRQ
+
+
+  @entra no modo SYSTEM
+  msr CPSR_c, #0x1F
+  @muda o comeco da pilha para esta posicao
+  mov sp,=STACK_SYS
+
+
+  @entra no modo SUPERVISOR
+  msr CPSR_c, #0x13
+  @ajusta o comeco da pilha para essa posicao
+  mov sp, =STACK_SUPER
 
 
 
@@ -163,13 +182,210 @@ RETURN_TO_USER:
 	@muda para modo USER
 	msr CPSR_c, #0x10
 	@salta para a posicao do inicio do programa do usuario
-    bx r0
+	mov pc, r0
 
 
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                SYSCALL_HANDLER                              @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 SYSCALL_HANDLER:
+  stmfd sp!, {lr}
+
+  @funcao read sonar
+  cmp r7, #16
+  bleq READ_SONAR
+
+  @funcao register_proximity_callback
+  cmp r7, #17
+  bleq REGISTER_PROXIMITY_CALLBACK
+
+  @funcao set_motor_speed
+  cmp r7, #18
+  bleq SET_MOTOR_SPEED
+
+  @funcao set motors speed
+  cmp r7, #19                                     @ set motors speed
+  bleq SET_MOTORS_SPEED
+
+  cmp r7, #20
+  bleq GET_TIME
+
+  cmp r7, #21                                     @ set time
+  bleq SET_TIME
+
+  cmp r7, #22                                     @ set alarm
+  bleq ADD_ALARM
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                READ_SONAR                                   @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@tratamento da syscall read_sonar
+READ_SONAR:
+  @r1:id do sonar
+
+  stmfd sp!, {r1-r11, lr}
+  @salva CPRS em r0 para nao perder quando mudar de modo
+  mrs r0, CPSR
+  @entra no modo system para pegar os parametros da funcao da pilha
+  msr CPSR, #0x1F
+  @recupera o valor (salvando em r1)
+  ldr r1, [sp]
+  @retorna para o modo supervisor
+  msr CPSR, r0
+
+  @testa para ver se o id do sonar esta entre 0 e 15
+  cmp r1, #15
+  bhi break_read_sonar
+
+  @se o sonar eh valido, pega o valor que esta em GPIO_DR
+  ldr r0, =GPIO_BASE
+  ldr r2, [r0, #GPIO_DR]
+  @zera o MUX DO SONAR e o trigger
+  bic r2, r2, #0b111110
+  @desloca 2 bits para a esquerda para id ficar no lugar certo e ja coloca o
+  @resultado em GPIO_DR
+  lsl r1, r1, #2
+  orr r2, r2, r1
+  str r2, [r0, #GPIO_DR]
+
+  @espera um tempo ate os valores serem setados
+  bl delay
+
+  @seta o trigger como 1
+  ldr r2, [r0, #GPIO_DR]
+  bic r2, r2, #0b10
+  srt r2, [r2, #GPIO_DR]
+
+  @espera um tempo ate o valor do sensor ser definido
+
+  bl delay
+
+  @seta o trigger como 0
+  ldr r2, [r0, #GPIO_DR]
+  bic r2, r2, #0b10
+  srt r2, [r2, #GPIO_DR]
+
+  @espera ate flag = 1 (ou seja, ja tem o resultado do sonar)
+  ldr r2, [r0, #GPIO_DR]
+  and r2, r2, #0b1
+  cmp r2, #0b1
+  beq flag_um
+espera_flag:
+  bl delay
+  ldr r2, [r0, #GPIO_DR]
+  and r2, r2, #0b1
+  cmp r2, #0b1
+  bne espera_flag
+
+flag_um:
+
+  @le o sonar (o resultado em GPIO_DR contem o SONAR_DATA)
+  ldr r2, [r0, #GPIO_DR]
+  @le apenas os bits de sonar data para frente
+  lsl r2, r2, #6
+  @agora r0 contem apenas o resultado de sonar data
+  and r0, r2, #0b111111111111
+
+  @desempilha
+  ldmfd sp!, {r4-r11, pc}
+
+  @retorna para modo usuario
+  movs pc, lr
+
+
+break_read_sonar:
+  @retorna -1 se o id do sonar é invalido
+  mov r0, #-1
+
+  ldmfd sp!, {r1-r11, pc}
+
+  @retorna para modo usuario
+  movs pc, lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@                                SET_MOTOR_SPEED                              @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+SET_MOTOR_SPEED:
+  @r1:id
+  @r2:speed
+
+  stmfd sp!, {r1-r11, lr}
+  @salva CPRS em r0 para nao perder quando mudar de modo
+  mrs r0, CPSR
+  @entra no modo system para pegar os parametros da funcao da pilha
+  msr CPSR, #0x1F
+  @recupera o valor (salvando em r1 e em r2)
+  mov r4, sp
+  sub r4, r4, #4
+  ldr r2, [r4]
+  sub r4, r4, #4
+  ldr r1, [r4]
+  @retorna para o modo supervisor
+  msr CPSR, r0
+
+  @testa se os valores de id de motor eh valido
+  cmp r1, #0
+  bleq id_valido
+  cmp r1, #1
+  bleq id_valido
+  b break_set_motor_id
+  @se o id eh valido testa se a velocidade eh valida
+id_valido:
+  cmp r2, #63
+  bhi break_set_motor_speed
+
+  @se o id (r1) e a velocidade (r2) sao validas
+  
+
+
+break_set_motor_id:
+  @retorna -1 se a funcao tem id de motor invalido
+  mov r0, #-1
+  ldmfd sp!, {r1-r11, pc}
+
+  movs pc, lr
+
+break_set_motor_speed:
+  @retorna -1 se a funcao tem velocidade de motor invalida
+  mov r0, #-2
+  ldmfd sp!, {r4-r11, pc}
+
+
+SET_MOTORS_SPEED:
+  @testa se as velocidades sao validas
+  cmp r2, #63
+  bhi break_motor1_speed
+  cmp r3, #63
+  bhi break_motor2_speed
+
+
+break_motor1_speed:
+  @retorna -1 se a funcao tem velocidade de motor invalida
+  mov r0, #-1
+  ldmfd sp!, {r4-r11, pc}
+
+
+break_motor2_speed:
+  @retorna -1 se a funcao tem velocidade de motor invalida
+  mov r0, #-2
+  ldmfd sp!, {r4-r11, pc}
 
 
 
+
+REGISTER_PROXIMITY_CALLBACK:
+
+@testa se o id do sensor eh valido
+cmp r1, #15
+bhi break_sonar_id
+
+
+break_sonar_id:
+    mov r0, #-2
+    ldmfd sp!, {r4-r11, pc}
+
+ADD_ALARM
 
 
 .data
@@ -182,3 +398,16 @@ alarms:
 
 call_backs:
 	.word 0
+
+@tamanho total das stacks (1024 para cada um dos 4 modos)
+STACK_USER:
+  .skip 1024
+
+STACK_SUPER:
+  .skip 1024
+
+STACK_SYS:
+  .skip 1024
+
+STACK_IRQ:
+  .skip 1024
