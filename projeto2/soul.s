@@ -63,7 +63,7 @@ interrupt_vector:
 
 .text
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 @                                TODOS OS SETS                                @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -75,7 +75,7 @@ RESET_HANDLER:
 
 	mov r1, #0
 	@reseta sys_time
-	ldr r0, =sys_time
+	ldr r0, =CONTADOR
 	str r1, [r0]
 
 	@reseta alarmes
@@ -188,8 +188,25 @@ RETURN_TO_USER:
 	@salta para a posicao do inicio do programa do usuario
 	mov pc, r0
 
-
+@                               IRQ_HANDLER                                   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+IRQ_HANDLER:
+  ldr r1, =GPT_BASE
+
+  @Coloca 1 em GPT_SR (declara que teve interrupcao)
+  mov r0, #1
+  str r0, [r1, #GPT_SR]
+
+  @Incrementa contador na memoria
+  ldr r0, =CONTADOR
+  ldr r1, [r0]
+  add r1, r1, #1
+  str r1, [r0]
+
+  @Retorna para a execucao
+  sub lr, lr, #4
+  movs pc, lr
+
 @                                SYSCALL_HANDLER                              @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 SYSCALL_HANDLER:
@@ -225,7 +242,7 @@ SYSCALL_HANDLER:
   @retorna para modo usuario
   movs pc, lr
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 @                                READ_SONAR                                   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @tratamento da syscall read_sonar
@@ -238,7 +255,7 @@ READ_SONAR:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1)
-  ldr r1, [sp]
+  ldr r1, [sp, #-4]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -305,7 +322,7 @@ break_read_sonar:
   @desempilha (retorna para SYSCALL_HANDLER)
   ldmfd sp!, {r4-r11, pc}
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 @                                SET_MOTOR_SPEED                              @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -319,11 +336,11 @@ SET_MOTOR_SPEED:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1 e em r2)
-  mov r4, sp
-  sub r4, r4, #4
-  ldr r2, [r4]
-  sub r4, r4, #4
-  ldr r1, [r4]
+  mov r3, sp
+  sub r3, r3, #4
+  ldr r2, [r3]
+  sub r3, r3, #4
+  ldr r1, [r3]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -338,22 +355,22 @@ SET_MOTOR_SPEED:
   b break_set_motor_id
 
   ldr r0, =GPIO_BASE
-  ldr r4, [r0, #GPIO_DR]
+  ldr r3, [r0, #GPIO_DR]
 motor0:
   @desloca a velocidade para a posicao certa
   mov r2, r2, lsl #19
-  and r4, r4, #MOTOR_0_MASK
-  orr r1, r1, r4
+  and r3, r3, #MOTOR_0_MASK
+  orr r1, r1, r3
   @escreve a velocidade na saida
   str r1, [r0, #GPIO_DR]
   mov r0, #0
-  ldmfd sp!, {r1-r11, pc}
+  ldmfd sp!, {r4-r11, pc}
 
 motor1:
   @desloca a velocidade para a posicao certa
   mov r2, r2, lsl #26
-  and r4, r4, #MOTOR_1_MASK
-  orr r1, r1, r4
+  and r3, r3, #MOTOR_1_MASK
+  orr r1, r1, r3
   @escreve a velocidade na saida
   str r1, [r0, #GPIO_DR]
   mov r0, #0
@@ -370,7 +387,7 @@ break_set_motor_speed:
   ldmfd sp!, {r4-r11, pc}
 
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 @                                SET_MOTORS_SPEED                             @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
   @r1:speed1
@@ -429,8 +446,8 @@ break_motor1_speed:
   ldmfd sp!, {r4-r11, pc}
 
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@                                SET_MOTORS_SPEED                             @
+@@@TROUBLETROUBLETROUBLE
+@                         REGISTER_PROXIMITY_CALLBACK                         @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 REGISTER_PROXIMITY_CALLBACK:
 
@@ -443,13 +460,39 @@ break_sonar_id:
     mov r0, #-2
     ldmfd sp!, {r4-r11, pc}
 
-ADD_ALARM
+@                                GET_TIME                                     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+GET_TIME:
+  ldmfd sp!, {lr}
 
+  ldr r1, =CONTADOR
+  ldr r0, [r1]
+
+  ldmfd sp!, {pc}
+
+@                                SET_TIME                                     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+GET_TIME:
+  stmfd sp!, {lr}
+  @r1: endereco para salvar o tempo
+
+  @salva CPRS em r0 para nao perder quando mudar de modo
+  mrs r0, CPSR
+  @entra no modo system para pegar os parametros da funcao da pilha
+  msr CPSR, #0x1F
+  @recupera o valor (salvando em r1 e em r2)
+  ldr r1, [r4, #-4]
+  @retorna para o modo supervisor
+  msr CPSR, r0
+  ldr r0, =CONTADOR
+  str r1, [r0]
+  
+  ldmfd sp!, {pc}
 
 .data
 
-sys_time:
-	.word 0
+CONTADOR:
+  .skip 32
 
 alarms:
 	.word 0

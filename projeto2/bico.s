@@ -139,13 +139,13 @@ get_time:
     stmfd sp!, {r4-r11, lr}    @ Save the callee-save registers
     @parametros:
     @r0: ponteiro para variavel que vai receber o tempo do sistema
-
-    @empilha as variaveis
-    stmfd sp!, {r0}
+    mov r9, r0
     @define a syscall
     mov r7, #20
     @chama o sistema operacional
     svc 0x0
+    @r0: tempo do sistema
+    str r0, [r9]
 
     ldmfd sp!, {r4-r11, pc}      @ Restore the registers and return
 
