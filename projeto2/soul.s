@@ -18,7 +18,7 @@ interrupt_vector:
 .text
 
 @definicao do .text do modo USER (maior que 77802000 definido no Makefile)
-.set USER_TEXT				0x77802500
+.set USER_TEXT,             0x77802500
 
 @enderecos do GPT
 .set GPT_BASE,              0x53FA0000
@@ -53,6 +53,9 @@ interrupt_vector:
 @mascara de velocidade dos motores
 .set MOTOR_0_MASK,          0b11111110000000111111111111111111
 .set MOTOR_1_MASK,          0b00000001111111111111111111111111
+
+@mascara da data do sonar
+.set SONAR_DATA_MASK,       0b111111111111
 
 
 @constantes
@@ -163,19 +166,25 @@ SET_STACKS:
   @entra no modo IRQ
   msr CPSR_c, #0x12
   @ajusta o comeco de sp para essa posicao
-  mov sp,=STACK_IRQ
+  ldr r1,=STACK_IRQ
+  ldr r1, [r1]
+  mov sp, r1
 
 
   @entra no modo SYSTEM
   msr CPSR_c, #0x1F
   @muda o comeco da pilha para esta posicao
-  mov sp,=STACK_SYS
+  ldr r1, =STACK_SYS
+  ldr r1, [r1]
+  mov sp, r1
 
 
   @entra no modo SUPERVISOR
   msr CPSR_c, #0x13
   @ajusta o comeco da pilha para essa posicao
-  mov sp, =STACK_SUPER
+  ldr r1, =STACK_SUPER
+  ldr r1, [r1]
+  mov sp, r1
 
 
 
@@ -185,8 +194,10 @@ RETURN_TO_USER:
 
 	@muda para modo USER
 	msr CPSR_c, #0x10
-	@salta para a posicao do inicio do programa do usuario
-	mov pc, r0
+
+    @salta para a posicao do inicio do programa do usuario
+    mov pc, r0
+
 
 @                               IRQ_HANDLER                                   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -216,9 +227,9 @@ SYSCALL_HANDLER:
   cmp r7, #16
   bleq READ_SONAR
 
-  @funcao register_proximity_callback
-  cmp r7, #17
-  bleq REGISTER_PROXIMITY_CALLBACK
+  @ @funcao register_proximity_callback
+  @ cmp r7, #17
+  @ bleq REGISTER_PROXIMITY_CALLBACK
 
   @funcao set_motor_speed
   cmp r7, #18
@@ -234,8 +245,8 @@ SYSCALL_HANDLER:
   cmp r7, #21                                     @ set time
   bleq SET_TIME
 
-  cmp r7, #22                                     @ set alarm
-  bleq ADD_ALARM
+  @ cmp r7, #22                                     @ set alarm
+  @ bleq ADD_ALARM
 
   ldmfd sp!, {lr}
 
@@ -255,7 +266,7 @@ READ_SONAR:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1)
-  ldr r1, [sp, #-4]
+  ldr r1, [sp]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -280,7 +291,7 @@ READ_SONAR:
   @seta o trigger como 1
   ldr r2, [r0, #GPIO_DR]
   bic r2, r2, #0b10
-  srt r2, [r2, #GPIO_DR]
+  str r2, [r2, #GPIO_DR]
 
   @espera um tempo ate o valor do sensor ser definido
 
@@ -289,7 +300,7 @@ READ_SONAR:
   @seta o trigger como 0
   ldr r2, [r0, #GPIO_DR]
   bic r2, r2, #0b10
-  srt r2, [r2, #GPIO_DR]
+  str r2, [r2, #GPIO_DR]
 
   @espera ate flag = 1 (ou seja, ja tem o resultado do sonar)
   ldr r2, [r0, #GPIO_DR]
@@ -309,8 +320,7 @@ flag_um:
   ldr r2, [r0, #GPIO_DR]
   @le apenas os bits de sonar data para frente
   lsl r2, r2, #6
-  @agora r0 contem apenas o resultado de sonar data
-  and r0, r2, #0b111111111111
+
 
   @desempilha (retorna para SYSCALL_HANDLER)
   ldmfd sp!, {r4-r11, pc}
@@ -336,11 +346,8 @@ SET_MOTOR_SPEED:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1 e em r2)
-  mov r3, sp
-  sub r3, r3, #4
-  ldr r2, [r3]
-  sub r3, r3, #4
-  ldr r1, [r3]
+  ldr r2, [sp]
+  ldr r1, [sp,#4]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -390,6 +397,7 @@ break_set_motor_speed:
 
 @                                SET_MOTORS_SPEED                             @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+SET_MOTORS_SPEED:
   @r1:speed1
   @r2:speed0
 
@@ -399,11 +407,8 @@ break_set_motor_speed:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1 e em r2)
-  mov r4, sp
-  sub r4, r4, #4
-  ldr r2, [r4]
-  sub r4, r4, #4
-  ldr r1, [r4]
+  ldr r2, [sp]
+  ldr r1, [sp,#4]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -416,7 +421,7 @@ break_set_motor_speed:
 
   ldr r0, =GPIO_BASE
   ldr r4, [r0, #GPIO_DR]
-  motor0:
+
   @desloca a velocidade para a posicao certa
   mov r1, r1, lsl #19
   and r4, r4, #MOTOR_0_MASK
@@ -424,7 +429,7 @@ break_set_motor_speed:
   @escreve a velocidade na saida
   str r1, [r0, #GPIO_DR]
 
-  motor1:
+
   @desloca a velocidade para a posicao certa
   mov r2, r2, lsl #26
   and r4, r4, #MOTOR_1_MASK
@@ -472,7 +477,7 @@ GET_TIME:
 
 @                                SET_TIME                                     @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-GET_TIME:
+SET_TIME:
   stmfd sp!, {lr}
   @r1: endereco para salvar o tempo
 
@@ -480,14 +485,24 @@ GET_TIME:
   mrs r0, CPSR
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
-  @recupera o valor (salvando em r1 e em r2)
-  ldr r1, [r4, #-4]
+  @recupera o valor (salvando em r1)
+  ldr r1, [sp]
   @retorna para o modo supervisor
   msr CPSR, r0
   ldr r0, =CONTADOR
   str r1, [r0]
-  
+
   ldmfd sp!, {pc}
+
+delay:
+    stmfd sp!, {lr}
+    mov r0, #0
+loop:
+    add r0, r0, #1
+    cmp r0, #1000
+    ble loop
+    ldmfd sp!, {pc}
+
 
 .data
 
