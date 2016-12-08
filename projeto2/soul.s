@@ -14,6 +14,11 @@ interrupt_vector:
 .org 0x18
     b IRQ_HANDLER
 
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
 @definicoes de constantes
 .text
 
@@ -64,6 +69,9 @@ interrupt_vector:
 
 
 
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 .text
 
 
@@ -202,6 +210,7 @@ RETURN_TO_USER:
 @                               IRQ_HANDLER                                   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 IRQ_HANDLER:
+  stmfd sp!, {r0-r12, lr}
   ldr r1, =GPT_BASE
 
   @Coloca 1 em GPT_SR (declara que teve interrupcao)
@@ -214,7 +223,199 @@ IRQ_HANDLER:
   add r1, r1, #1
   str r1, [r0]
 
-  @Retorna para a execucao
+
+
+
+
+@@@@@@@checa se tem alarme
+
+
+
+check_alarm:
+@r1: tempo dos alarmes
+@r2: funcoes que sao chamadas quando da o tempo dos alarmes
+@r3: quantidade de alarmes
+@r4: contadorde loop_check_alarms
+@r5: tempo do alarme
+@r6: numero de alarmes que ainda faltam
+@r7: funcao para ser pulada quando mudar para modo usuario
+@r8: nova quantidade de alarmes (depois que tiraram o que ja foi tocado)
+ldr r1, =ALARMS_TIME
+ldr r2, =ALARMS_FUNCTIONS
+ldr r9, =alarms
+ldr r3, [r9]
+mov r8, r3
+mov r4, #0
+mov r6, #0              @ Number of alarms not called
+
+@testa se checou todos os alarmes
+loop_check_alarms:
+add r4, r4, #1
+cmp r4, r3
+bgt check_callback
+
+ldr r5, [r1]
+
+@testa se o tempo do alarme atual nao eh o tempo do sistema
+cmp r5, r0
+@se nao for, passa para o proximo alarme
+addne r1, r1, #4
+addne r2, r2, #4
+@e ainda falta mais um alarme (mais um alarme nao foi chamado ainda)
+addne r6, r6, #1
+@testa o proximo alarme da lista
+bne loop_check_alarms
+
+@se testou todos os alarmes e tem um com o tempo igual ao tempo do sistema
+@(nao pulou para finish alarms)
+@um alarme tem o tempo do sistema e vai ser executado
+
+@atualiza a nova quantidade de alarmes
+sub r8, r8, #1
+
+@salva a nova quantidade de alarmes
+str r8, [r9]
+
+@salva r0, r1, r2, r3 (vai ser usado depois e tambem dentro da funcao de excluir alarme)
+stmfd sp!, {r0-r3}
+@r0: posicao no vetor de tempo de alarme
+@r1: posicao no vetor de funcao dos alarmes
+@r2: numero de posicoes para ser deslocados (alarmes que sobram no vetor)
+mov r0, r1
+mov r1, r2
+sub r2, r8, r6
+bl deleta
+ldmfd sp!, {r0-r3}
+
+@r10 recebe a funcao a ser chamada
+ldr r7, [r2]
+
+
+stmfd sp!, {r0-r3}
+@muda para modo usuario
+msr CPSR_c, #0xD0
+@pula para a funcao (executa a funcao)
+blx r10
+
+mov r1, r7
+@syscall para voltar para modo IRQ
+mov r7, #75
+svc 0x0
+mov r7, r1
+ldmfd sp!, {r0-r3}
+
+b loop_check_alarms
+
+deleta:
+stmfd sp!, {r4-r5, lr}
+
+loop_deleta:
+@r0: posicao no vetor de tempo de alarme
+@r1: posicao no vetor de funcao dos alarmes
+@r2: numero de posicoes para ser deslocados (alarmes que sobram no vetor)
+  @enquanto r2 nao eh zero (nao deslocou todas as posicoes)
+  cmp r2, #0
+  beq fim_deleta
+
+  @pega as posicoes seguintes
+  add r3, r0, #4
+  add r4, r1, #4
+
+  @salvam na posicao atual
+  ldr r5, [r3]
+  str r5, [r0]
+
+  ldr r5, [r4]
+  str r5, [r1]
+
+  @atualiza a posicao nos vetores de tempo e funcao
+  mov r0, r3
+  mov r1, r4
+
+  @decrementa o numero de posicoes que ainda faltam ser deslocados
+  sub r2, r2, #1
+
+  b loop_deleta
+
+  fim_deleta:
+  ldmfd sp!, {r4-r5, lr}
+
+  mov pc, lr
+
+
+
+
+@@@@@@@@@checa se tem callback
+
+
+check_callback:
+@r0: id do sensor a ser lido
+@r1: vetor de id de sonares
+@r2: vetor de funcoes de callbacks
+@r3: vetor de thresholds de distancias
+@r4: numero de callbacks
+@r5: ditancia limite (threshold)
+@r6: contador
+@r7: funcao para executar quando chega no treshold
+ldr r4, =callbacks
+ldr r4, [r4]
+ldr r1, =CALLBACK_IDS
+ldr r2, =CALLBACK_FUN
+ldr r3, =CALLBACK_THRES
+mov r6, #0
+
+@testa todas as callbacks
+loop_make_callbacks:
+add r6, r6, #1
+cmp r6, r4
+bgt break_IRQ
+
+@ve qual eh o id do sonar a ser lido
+ldr r0, [r1], #4
+@salva os registradores antes de ler a distancia
+stmfd sp!, {r1-r3}
+@le a distancia do sonar
+bl INTERNAL_READ_SONAR
+@recupera os registradores
+ldmfd sp!, {r1-r3}
+
+ldr r5, [r3], #4
+
+@se a distancia ainda nao chegou no treshold
+cmp r0, r5
+bgt end_callback_loop
+
+@se a distancia ja chegou ou eh menor que o treshold
+ldr r7, [r2]
+@salva os registradores
+stmfd sp!, {r0-r3}
+@muda para o modo usuario
+msr CPSR_c, #D0
+@executa a funcao
+blx r7
+@salva o valor de r7
+mov r1, r7
+@retorna para modo IRQ
+mov r7, #75
+@chama a syscall
+svc 0x0
+@recupera o valor de r7
+mov r7, r1
+Desempilha
+ldmfd sp!, {r0-r3}
+
+@pula para a proxima funcao
+end_callback_loop:
+add r2, r2, #4
+b loop_make_callbacks
+
+
+
+@Retorna para a execucao do usuario
+break_IRQ
+
+  ldmfd sp!, {r0-r12, lr}
+
   sub lr, lr, #4
   movs pc, lr
 
@@ -236,17 +437,25 @@ SYSCALL_HANDLER:
   bleq SET_MOTOR_SPEED
 
   @funcao set motors speed
-  cmp r7, #19                                     @ set motors speed
+  cmp r7, #19
   bleq SET_MOTORS_SPEED
 
+  @funcao get time
   cmp r7, #20
   bleq GET_TIME
 
-  cmp r7, #21                                     @ set time
+  @funcao set time
+  cmp r7, #21
   bleq SET_TIME
 
-  @ cmp r7, #22                                     @ set alarm
-  @ bleq ADD_ALARM
+  @funcao add alarm
+  cmp r7, #22
+  bleq ADD_ALARM
+
+  @funcao para retornar para modo IRQ
+  cmp r7, #75
+  bleq BACK_TO_IRQ
+
 
   ldmfd sp!, {lr}
 
@@ -319,8 +528,9 @@ flag_um:
   @le o sonar (o resultado em GPIO_DR contem o SONAR_DATA)
   ldr r2, [r0, #GPIO_DR]
   @le apenas os bits de sonar data para frente
-  lsl r2, r2, #6
-
+  mov r0, r2, lsr #6
+  ldr r1, =SONAR_DATA_MASK
+  and r0, r1
 
   @desempilha (retorna para SYSCALL_HANDLER)
   ldmfd sp!, {r4-r11, pc}
@@ -331,6 +541,67 @@ break_read_sonar:
   mov r0, #-1
   @desempilha (retorna para SYSCALL_HANDLER)
   ldmfd sp!, {r4-r11, pc}
+
+@                             INTERNAL_READ_SONAR                             @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+INTERNAL_READ_SONAR:
+  @r0:id do sonar
+
+  @salva o id do sonar em r1
+  mov r1, r0
+  @se o sonar eh valido, pega o valor que esta em GPIO_DR
+  ldr r0, =GPIO_BASE
+  ldr r2, [r0, #GPIO_DR]
+  @zera o MUX DO SONAR e o trigger
+  bic r2, r2, #0b111110
+  @desloca 2 bits para a esquerda para id ficar no lugar certo e ja coloca o
+  @resultado em GPIO_DR
+  lsl r1, r1, #2
+  orr r2, r2, r1
+  str r2, [r0, #GPIO_DR]
+
+  @espera um tempo ate os valores serem setados
+  bl delay
+
+  @seta o trigger como 1
+  ldr r2, [r0, #GPIO_DR]
+  bic r2, r2, #0b10
+  str r2, [r2, #GPIO_DR]
+
+  @espera um tempo ate o valor do sensor ser definido
+
+  bl delay
+
+  @seta o trigger como 0
+  ldr r2, [r0, #GPIO_DR]
+  bic r2, r2, #0b10
+  str r2, [r2, #GPIO_DR]
+
+  @espera ate flag = 1 (ou seja, ja tem o resultado do sonar)
+  ldr r2, [r0, #GPIO_DR]
+  and r2, r2, #0b1
+  cmp r2, #0b1
+  beq flag_um
+espera_flag:
+  bl delay
+  ldr r2, [r0, #GPIO_DR]
+  and r2, r2, #0b1
+  cmp r2, #0b1
+  bne espera_flag
+
+flag_um:
+
+  @le o sonar (o resultado em GPIO_DR contem o SONAR_DATA)
+  ldr r2, [r0, #GPIO_DR]
+  @le apenas os bits de sonar data para frente
+  mov r0, r2, lsr #6
+  ldr r1, =SONAR_DATA_MASK
+  and r0, r1
+
+  @retorna
+  mov pc, lr
+
+
 
 
 @                                SET_MOTOR_SPEED                              @
@@ -398,8 +669,8 @@ break_set_motor_speed:
 @                                SET_MOTORS_SPEED                             @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 SET_MOTORS_SPEED:
-  @r1:speed1
-  @r2:speed0
+  @r1: motor_id
+  @r2: motor_speed'
 
   stmfd sp!, {r4-r11, lr}
   @salva CPRS em r0 para nao perder quando mudar de modo
@@ -407,8 +678,8 @@ SET_MOTORS_SPEED:
   @entra no modo system para pegar os parametros da funcao da pilha
   msr CPSR, #0x1F
   @recupera o valor (salvando em r1 e em r2)
-  ldr r2, [sp]
-  ldr r1, [sp,#4]
+  ldr r1, [sp]
+  ldr r2, [sp,#4]
   @retorna para o modo supervisor
   msr CPSR, r0
 
@@ -451,19 +722,68 @@ break_motor1_speed:
   ldmfd sp!, {r4-r11, pc}
 
 
-@@@TROUBLETROUBLETROUBLE
+
 @                         REGISTER_PROXIMITY_CALLBACK                         @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 REGISTER_PROXIMITY_CALLBACK:
+    @r1:sensor_id
+    @r2: sensor_threshold
+    @r3: ponteiro para a funcao
+    stmfd sp!, {r4-r11, lr}
+    @salva CPRS em r0 para nao perder quando mudar de modo
+    mrs r0, CPSR
+    @entra no modo system para pegar os parametros da funcao da pilha
+    msr CPSR, #0x1F
+    @recupera o valor (salvando em r1 e em r2)
+    ldr r1, [sp]
+    ldr r2, [sp,#4]
+    ldr r3, [sp, #8]
+    @retorna para o modo supervisor
+    msr CPSR, r0
 
-@testa se o id do sensor eh valido
-cmp r1, #15
-bhi break_sonar_id
+    @ make the necessary verifications
+    ldr r4, =callbacks
+    ldr r9, [r4]
+
+    @se ja chegou no maximo de callbacks retorna -1
+    cmp r4, #MAX_CALLBACKS
+    bhs break_call_backs
+
+    @se o sensor nao existe retorna -2
+    cmp r0, #MAX_SENSOR_ID              @ if id > MAX_SENSOR_ID
+    bhi break_call_backs_id
+
+    @soma 1 no total de callbacks
+    add r8, r9, #1
+    srt r8, [r4]
+
+    @modifica a posicao do vetor de registros de sinais a ser alterado
+
+    lsl r9, r9, #2
 
 
-break_sonar_id:
-    mov r0, #-2
+    ldr r5, =CALLBACK_ID
+    ldr r6, =CALLBACK_THRESH
+    ldr r7, =CALLBACK_FUNCTIONS
+    @se esta tudo certo, guarda os valores nos vetores
+    str r0, [r5, r9]
+    str r1, [r6, r9]
+    str r2, [r7, r9]
+
+    @retorna 0 se deu tudo certo
+    mov r0, #0
+
     ldmfd sp!, {r4-r11, pc}
+
+break_call_backs:
+  @retorna -1 se a funcao tem velocidade do motor 0 invalida
+  mov r0, #-1
+  ldmfd sp!, {r4-r11, pc}
+
+break_call_backs_id:
+  @retorna -2 se a funcao tem velocidade do motor 1 invalida
+  mov r0, #-2
+  ldmfd sp!, {r4-r11, pc}
 
 @                                GET_TIME                                     @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -494,6 +814,70 @@ SET_TIME:
 
   ldmfd sp!, {pc}
 
+
+
+@                                SET_ALARM                                    @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+SET_ALARM:
+    @r1:time (unsigned int)
+    @r2:function
+    stmfd sp!, {r4-r11, lr}
+    @salva CPRS em r0 para nao perder quando mudar de modo
+    mrs r0, CPSR
+    @entra no modo system para pegar os parametros da funcao da pilha
+    msr CPSR, #0x1F
+    @recupera o valor (salvando em r1 e em r2)
+    ldr r2, [sp]
+    ldr r1, [sp,#4]
+    @retorna para o modo supervisor
+    msr CPSR, r0
+
+    dr r0, =alarms
+    ldr r4, [r0]
+    @se ja possui o maximo de alarmes
+    cmp r4, #MAX_ALARMS                 @ if r1 >= MAX_ALARMS
+    bge time_error                 @   return -1
+
+    ldr r7, =CONTADOR
+    ldr r7, [r7]
+
+    @testa se ja passou o tempo do alarme a set setado
+    cmp r7, r1
+    bhi break_max
+
+    @guarda a nova quantidade de alarmes
+    add r8, r4, #1
+    srt r8, [r0]
+
+    @modifica a posicao do vetor de registros de sinais a ser alterado
+
+    lsl r4, r4, #2
+
+    @se nao tem erro, guarda os valores nas listas de alarmes
+    ldr r5, =ALARMS_FUNCTIONS
+    ldr r6, =ALARMS_TIME
+
+    str r2, [r5, r4]
+    str r1, [r6, r4]
+
+    @retorna 0 se deu tudo certo
+    mov r0, #0
+
+    ldmfd sp!, {r4-r11, lr}
+
+break_time_error:
+  @retorna -1 se a funcao tem velocidade do motor 0 invalida
+  mov r0, #-1
+  ldmfd sp!, {r4-r11, pc}
+
+break_max:
+  @retorna -2 se a funcao tem velocidade do motor 1 invalida
+  mov r0, #-2
+  ldmfd sp!, {r4-r11, pc}
+
+
+@                                DELAY                                        @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 delay:
     stmfd sp!, {lr}
     mov r0, #0
@@ -504,6 +888,21 @@ loop:
     ldmfd sp!, {pc}
 
 
+@                               BACK_TO_IRQ                                   @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+BACK_TO_IRQ:
+  
+  mrs r1, SPSR
+  bic r1, #0xFF
+  orr r1, r1, #D2
+  msr SPSR, r1
+
+  ldmfd sp!, {r1-r12, lr}
+  movs pc, lr
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 .data
 
 CONTADOR:
@@ -527,3 +926,19 @@ STACK_SYS:
 
 STACK_IRQ:
   .skip 1024
+
+@tamanho: 8*32 = 256
+CALLBACK_ID:
+.skip 256
+
+CALLBACK_FUNCTIONS:
+.skip 256
+
+CALLBACK_THRESH:
+.skip 256
+
+ALARMS_FUNCTIONS:
+.skip 256
+
+ALARMS_TIME:
+.skip 256

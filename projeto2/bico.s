@@ -24,8 +24,8 @@ set_motor_speed:
     ldrb r1, [r0]
     ldrb r2, [r0, #1]
     @empilha os valores para chamar a syscall
-    stmfd sp!, {r1}
     stmfd sp!, {r2}
+    stmfd sp!, {r1}
     @determina a syscall
     mov r7, #18
     @chama o sistema operacional
@@ -48,8 +48,8 @@ set_motors_speed:
     ldrb r3, [r1, #1]
 
     @empilha os valores para chamar a syscall
-    stmfd sp!, {r2}
     stmfd sp!, {r3}
+    stmfd sp!, {r2}
     @determina a syscall
     mov r7, #19
     @chama o sistema operacional
@@ -119,9 +119,9 @@ register_proximity_callback:
     @r1: sensor_threshold
     @r3: ponteiro para funcao (endereco do rotulo)
     @empilha as variaveis
-    stmfd sp!, {r0}
-    stmfd sp!, {r1}
     stmfd sp!, {r2}
+    stmfd sp!, {r1}
+    stmfd sp!, {r0}
     @define a syscall (17)
     mov r7, #17
     @chama o sistema operacional
@@ -178,8 +178,8 @@ add_alarm:
     @r1: tempo para invocar o alarme
 
     @empilha as variaveis
-    stmfd sp!, {r0}
     stmfd sp!, {r1}
+    stmfd sp!, {r0}
     @define a syscall
     mov r7, #22
     @chama o sistema operacional
